@@ -1,0 +1,222 @@
+// Prisma schema for Image Foundry Timesheet Application
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================
+// Authentication Models (NextAuth.js)
+// ============================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================
+// Application Models
+// ============================================
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          UserRole  @default(USER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts          Account[]
+  sessions          Session[]
+  timesheets        Timesheet[]
+  assignments       Assignment[]
+  leaveDays         LeaveDay[]
+  favoriteProjects  FavoriteProject[]
+  auditLogs         AuditLog[]
+  leaveEntitlements LeaveEntitlement[]
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Project {
+  id                 String        @id @default(cuid())
+  name               String
+  color              String        @default("#6366f1") // Default indigo color
+  totalHours         Float         @default(0)
+  usedHours          Float         @default(0)
+  percentageComplete Int           @default(0) // Budget tracking: 0-100
+  status             ProjectStatus @default(ACTIVE)
+  isDeleted          Boolean       @default(false)
+  archivedAt         DateTime?     // Timestamp when archived
+  archivedReason     String?       // Reason for archiving
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  // Relations
+  timesheets       Timesheet[]
+  assignments      Assignment[]
+  favoriteProjects FavoriteProject[]
+}
+
+model Assignment {
+  id         String   @id @default(cuid())
+  userId     String
+  projectId  String
+  assignedAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String
+  isSystem  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  // Relations
+  timesheets Timesheet[]
+}
+
+model Timesheet {
+  id         String   @id @default(cuid())
+  userId     String
+  projectId  String?  // Nullable for internal categories
+  categoryId String?  // Nullable for project work
+  date       DateTime
+  hours      Int      @default(0)
+  minutes    Int      @default(0)
+  notes      String?
+  isDeleted  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@index([projectId])
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  HOLIDAY
+  OTHER
+}
+
+model LeaveDay {
+  id     String    @id @default(cuid())
+  userId String
+  date   DateTime
+  type   LeaveType @default(OTHER)
+  notes  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model FavoriteProject {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String   // CREATE, UPDATE, DELETE, ARCHIVE, etc.
+  entityType String   // Project, User, Assignment, etc.
+  entityId   String
+  oldValue   Json?
+  newValue   Json?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model LeaveEntitlement {
+  id             String   @id @default(cuid())
+  userId         String
+  year           Int
+  baseAllowance  Int      @default(25)
+  extraAllowance Int      @default(0)
+  extraReason    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, year])
+}
+
+model Settings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

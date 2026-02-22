@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand Colors */
+  --color-brand-teal: #00657d;
+  --color-brand-pink: #B00555;
+  --color-brand-yellow: #F7AE00;
+
+  /* Primary Scale from Brand Teal */
+  --color-primary-50: #e0f2f6;
+  --color-primary-100: #b3e0e8;
+  --color-primary-500: #00657d;
+  --color-primary-600: #005164;
+  --color-primary-700: #003d4b;
+
+  /* Fonts */
+  --font-barlow: var(--font-space-grotesk), 'Space Grotesk', sans-serif;
+  --font-inter: var(--font-space-grotesk), 'Space Grotesk', sans-serif;
+
+  /* Shadows */
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* Custom Utilities */
+@layer utilities {
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-space-grotesk), 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--color-gray-900);
+  background-color: var(--color-gray-50);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-space-grotesk), 'Space Grotesk', sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-gray-100);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-gray-300);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gray-400);
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Progress bar colors */
+.progress-green {
+  background-color: var(--color-success-500);
+}
+
+.progress-yellow {
+  background-color: var(--color-warning-500);
+}
+
+.progress-red {
+  background-color: var(--color-danger-500);
+}
