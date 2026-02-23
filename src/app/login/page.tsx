@@ -5,13 +5,15 @@ const IS_DEMO_MODE = process.env.DEMO_MODE === 'true'
 
 export default async function LoginPage() {
     // Check for existing session — if auth() fails (DB cold start), just show login form
+    let session = null
     try {
-        const session = await auth()
-        if (session?.user) {
-            redirect(session.user.role === 'ADMIN' ? '/admin' : '/dashboard')
-        }
+        session = await auth()
     } catch (error) {
         console.error('Login page: auth() check failed, showing login form:', error)
+    }
+
+    if (session?.user) {
+        redirect(session.user.role === 'ADMIN' ? '/admin' : '/dashboard')
     }
 
     return (
