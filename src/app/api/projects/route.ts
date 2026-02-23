@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { prisma, withDbRetry } from '@/lib/prisma'
 import { createProjectSchema } from '@/lib/validations'
 import { createAuditLog } from '@/lib/audit'
 import { getRandomProjectColor } from '@/lib/utils'
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
         if (isAdmin) {
             // Admins see all projects
-            projects = await prisma.project.findMany({
+            projects = await withDbRetry(() => prisma.project.findMany({
                 where: {
                     isDeleted: false,
                     ...(includeArchived ? {} : { status: 'ACTIVE' }),
@@ -38,10 +38,10 @@ export async function GET(request: NextRequest) {
                     },
                 },
                 orderBy: { name: 'asc' },
-            })
+            }))
         } else {
             // Users only see assigned projects
-            projects = await prisma.project.findMany({
+            projects = await withDbRetry(() => prisma.project.findMany({
                 where: {
                     isDeleted: false,
                     status: 'ACTIVE',
@@ -59,14 +59,14 @@ export async function GET(request: NextRequest) {
                     },
                 },
                 orderBy: { name: 'asc' },
-            })
+            }))
         }
 
         // Get user's favorite projects
-        const favorites = await prisma.favoriteProject.findMany({
+        const favorites = await withDbRetry(() => prisma.favoriteProject.findMany({
             where: { userId },
             select: { projectId: true },
-        })
+        }))
         const favoriteIds = new Set(favorites.map(f => f.projectId))
 
         // Transform to include calculated fields

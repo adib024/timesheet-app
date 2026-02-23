@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { prisma, withDbRetry } from '@/lib/prisma'
 import { updateUserSchema } from '@/lib/validations'
 import { createAuditLog } from '@/lib/audit'
 import type { ApiResponse, UserInfo } from '@/types'
@@ -17,7 +17,7 @@ export async function GET() {
             return NextResponse.json<ApiResponse>({ success: false, error: 'Forbidden' }, { status: 403 })
         }
 
-        const users = await prisma.user.findMany({
+        const users = await withDbRetry(() => prisma.user.findMany({
             select: {
                 id: true,
                 name: true,
@@ -28,7 +28,7 @@ export async function GET() {
                 createdAt: true,
             },
             orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
-        })
+        }))
 
         return NextResponse.json<ApiResponse<UserInfo[]>>({
             success: true,

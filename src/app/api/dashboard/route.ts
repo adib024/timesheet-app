@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { prisma, withDbRetry } from '@/lib/prisma'
 import { startOfDay, endOfDay, startOfWeek, format } from 'date-fns'
 import type { ApiResponse } from '@/types'
 
@@ -22,7 +22,7 @@ export async function GET() {
         const targetHours = parseFloat(workdaySetting?.value || '7.5')
 
         // Today's entries
-        const todayEntries = await prisma.timesheet.findMany({
+        const todayEntries = await withDbRetry(() => prisma.timesheet.findMany({
             where: {
                 userId: session.user.id,
                 isDeleted: false,
@@ -44,12 +44,12 @@ export async function GET() {
                 category: { select: { id: true, name: true, color: true } },
             },
             orderBy: { createdAt: 'desc' },
-        })
+        }))
 
         const todayMinutes = todayEntries.reduce((sum, e) => sum + e.hours * 60 + e.minutes, 0)
 
         // This week's entries (grouped by day)
-        const weekEntries = await prisma.timesheet.findMany({
+        const weekEntries = await withDbRetry(() => prisma.timesheet.findMany({
             where: {
                 userId: session.user.id,
                 isDeleted: false,
@@ -63,7 +63,7 @@ export async function GET() {
                 hours: true,
                 minutes: true,
             },
-        })
+        }))
 
         const weeklyByDay = new Map<string, number>()
         for (const entry of weekEntries) {
@@ -75,17 +75,17 @@ export async function GET() {
         const weekTotal = Array.from(weeklyByDay.values()).reduce((sum, mins) => sum + mins, 0)
 
         // Check if today is leave
-        const isLeaveToday = await prisma.leaveDay.findUnique({
+        const isLeaveToday = await withDbRetry(() => prisma.leaveDay.findUnique({
             where: {
                 userId_date: {
                     userId: session.user.id,
                     date: startOfDay(today),
                 },
             },
-        })
+        }))
 
         // Get assigned projects with budget info
-        const assignments = await prisma.assignment.findMany({
+        const assignments = await withDbRetry(() => prisma.assignment.findMany({
             where: { userId: session.user.id },
             include: {
                 project: {
@@ -99,7 +99,7 @@ export async function GET() {
                     },
                 },
             },
-        })
+        }))
 
         const projects = assignments
             .filter(a => a.project.status === 'ACTIVE')
@@ -112,10 +112,10 @@ export async function GET() {
             }))
 
         // Get favorites
-        const favorites = await prisma.favoriteProject.findMany({
+        const favorites = await withDbRetry(() => prisma.favoriteProject.findMany({
             where: { userId: session.user.id },
             select: { projectId: true },
-        })
+        }))
         const favoriteIds = new Set(favorites.map(f => f.projectId))
 
         return NextResponse.json<ApiResponse>({
