@@ -5,7 +5,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter'
 import { prisma, prismaForAuth } from '@/lib/prisma'
 import { UserRole } from '@prisma/client'
 
-const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'loveimagefoundry.com').split(',').map(d => d.trim())
+const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'loveimagefoundry.com,loveimagefoundry.co.uk').split(',').map(d => d.trim())
 const IS_DEMO_MODE = process.env.DEMO_MODE === 'true'
 
 // Admin emails that always get ADMIN role, even if DB is unreachable (cold start safety net)
@@ -29,9 +29,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     trustHost: true,
     secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
     // PrismaAdapter handles user/account creation on Google sign-in
-    // Uses prismaForAuth which has auto-retry on all queries for cold start resilience
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...(IS_DEMO_MODE ? {} : { adapter: PrismaAdapter(prismaForAuth as any) }),
+    ...(IS_DEMO_MODE ? {} : { adapter: PrismaAdapter(prisma) }),
     providers: [
         Google({
             clientId: process.env.GOOGLE_CLIENT_ID || 'demo',
