@@ -31,17 +31,32 @@ export default function AdminProjectsPage() {
     const [projects, setProjects] = useState<Project[]>([])
     const [users, setUsers] = useState<User[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingProject, setEditingProject] = useState<Project | null>(null)
     const [formData, setFormData] = useState({ name: '', totalHours: '' })
     const [isSaving, setIsSaving] = useState(false)
 
-    const fetchData = async () => {
+    const fetchData = async (retryCount = 0) => {
         try {
+            setError(null)
             const [projectsRes, usersRes] = await Promise.all([
                 fetch('/api/projects?includeArchived=true'),
                 fetch('/api/users'),
             ])
+
+            if (!projectsRes.ok || !usersRes.ok) {
+                const status = !projectsRes.ok ? projectsRes.status : usersRes.status
+                if (status === 401) {
+                    setError('Session expired. Please sign out and sign back in.')
+                    return
+                }
+                if (retryCount < 2) {
+                    await new Promise(r => setTimeout(r, 1500))
+                    return fetchData(retryCount + 1)
+                }
+                throw new Error(`Server error (${status}). Please try again.`)
+            }
 
             const projectsJson = await projectsRes.json()
             const usersJson = await usersRes.json()
@@ -50,6 +65,7 @@ export default function AdminProjectsPage() {
             setUsers(usersJson.data || [])
         } catch (error) {
             console.error('Failed to fetch data:', error)
+            setError(error instanceof Error ? error.message : 'Failed to load projects. Please try again.')
         } finally {
             setIsLoading(false)
         }
@@ -167,6 +183,17 @@ export default function AdminProjectsPage() {
         return (
             <div className="flex items-center justify-center h-screen">
                 <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
+            </div>
+        )
+    }
+
+    if (error) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <div className="text-center">
+                    <p className="text-red-600 mb-4">{error}</p>
+                    <Button onClick={() => { setIsLoading(true); fetchData(); }}>Retry</Button>
+                </div>
             </div>
         )
     }

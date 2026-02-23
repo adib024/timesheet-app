@@ -8,6 +8,23 @@ import { UserRole } from '@prisma/client'
 const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'loveimagefoundry.com').split(',').map(d => d.trim())
 const IS_DEMO_MODE = process.env.DEMO_MODE === 'true'
 
+// Admin emails that always get ADMIN role, even if DB is unreachable (cold start safety net)
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'anshul@loveimagefoundry.com,aditya@aigeniq.ai').split(',').map(e => e.trim().toLowerCase())
+
+// Helper: retry a DB operation with delay (handles Supabase cold starts)
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 1500): Promise<T> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            return await fn()
+        } catch (error) {
+            if (attempt === retries) throw error
+            console.warn(`DB operation failed (attempt ${attempt + 1}/${retries + 1}), retrying in ${delayMs}ms...`)
+            await new Promise(resolve => setTimeout(resolve, delayMs))
+        }
+    }
+    throw new Error('Unreachable')
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
     trustHost: true,
     secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
@@ -86,13 +103,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                     token.userId = user.id
                 } else {
                     // For Google OAuth, look up the user in the database to get their role
+                    // Uses retry logic to handle Supabase cold starts
+                    const email = (user.email || token.email || '') as string
                     try {
-                        const email = user.email || token.email
                         if (email) {
-                            const dbUser = await prisma.user.findUnique({
-                                where: { email },
-                            })
-                            token.role = dbUser?.role || 'USER'
+                            const dbUser = await withRetry(() =>
+                                prisma.user.findUnique({ where: { email } })
+                            )
+                            token.role = dbUser?.role || (ADMIN_EMAILS.includes(email.toLowerCase()) ? 'ADMIN' : 'USER')
                             token.isActive = dbUser?.isActive ?? true
                             token.userId = dbUser?.id || user.id
                         } else {
@@ -101,9 +119,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                             token.userId = user.id
                         }
                     } catch (error) {
-                        console.error('Error fetching user from database during JWT callback:', error)
-                        // Fail gracefully: assign default role
-                        token.role = 'USER'
+                        console.error('Error fetching user from database during JWT callback (all retries failed):', error)
+                        // Fallback: use admin email list to determine role even if DB is down
+                        token.role = ADMIN_EMAILS.includes(email.toLowerCase()) ? 'ADMIN' : 'USER'
                         token.isActive = true
                         token.userId = user.id
                     }

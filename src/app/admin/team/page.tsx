@@ -16,14 +16,28 @@ interface User {
 export default function AdminTeamPage() {
     const [users, setUsers] = useState<User[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
 
-    const fetchUsers = async () => {
+    const fetchUsers = async (retryCount = 0) => {
         try {
+            setError(null)
             const res = await fetch('/api/users')
+            if (!res.ok) {
+                if (res.status === 401) {
+                    setError('Session expired. Please sign out and sign back in.')
+                    return
+                }
+                if (retryCount < 2) {
+                    await new Promise(r => setTimeout(r, 1500))
+                    return fetchUsers(retryCount + 1)
+                }
+                throw new Error(`Server error (${res.status}). Please try again.`)
+            }
             const json = await res.json()
             setUsers(json.data || [])
         } catch (error) {
             console.error('Failed to fetch users:', error)
+            setError(error instanceof Error ? error.message : 'Failed to load team members.')
         } finally {
             setIsLoading(false)
         }
@@ -55,6 +69,17 @@ export default function AdminTeamPage() {
         return (
             <div className="flex items-center justify-center h-screen">
                 <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
+            </div>
+        )
+    }
+
+    if (error) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <div className="text-center">
+                    <p className="text-red-600 mb-4">{error}</p>
+                    <Button onClick={() => { setIsLoading(true); fetchUsers(); }}>Retry</Button>
+                </div>
             </div>
         )
     }

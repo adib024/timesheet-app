@@ -48,7 +48,7 @@ export default function DashboardPage() {
     const [userName, setUserName] = useState<string | null>(null)
     const { hours: todayHours, minutes: todayMinutes } = data ? fromMinutes(data.today.totalMinutes) : { hours: 0, minutes: 0 }
 
-    const fetchData = useCallback(async () => {
+    const fetchData = useCallback(async (retryCount = 0) => {
         try {
             const [dashboardRes, categoriesRes] = await Promise.all([
                 fetch('/api/dashboard', { cache: 'no-store' }),
@@ -56,7 +56,15 @@ export default function DashboardPage() {
             ])
 
             if (!dashboardRes.ok || !categoriesRes.ok) {
-                throw new Error('Failed to fetch data')
+                const status = !dashboardRes.ok ? dashboardRes.status : categoriesRes.status
+                if (status === 401) {
+                    throw new Error('Session expired. Please sign out and sign back in.')
+                }
+                if (retryCount < 2) {
+                    await new Promise(r => setTimeout(r, 1500))
+                    return fetchData(retryCount + 1)
+                }
+                throw new Error(`Server error (${status}). Please try again.`)
             }
 
             const dashboardJson = await dashboardRes.json()
@@ -155,7 +163,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-center h-screen">
                 <div className="text-center">
                     <p className="text-red-600 mb-4">{error || 'Failed to load dashboard'}</p>
-                    <Button onClick={fetchData}>Retry</Button>
+                    <Button onClick={() => fetchData()}>Retry</Button>
                 </div>
             </div>
         )
