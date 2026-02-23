@@ -9,8 +9,7 @@ const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'loveimagefoundry.
 const IS_DEMO_MODE = process.env.DEMO_MODE === 'true'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-    // Only use PrismaAdapter in production (OAuth + database sessions)
-    // In demo mode (JWT strategy), the adapter interferes with session resolution
+    // PrismaAdapter handles user/account creation on Google sign-in
     ...(IS_DEMO_MODE ? {} : { adapter: PrismaAdapter(prisma) }),
     providers: [
         Google({
@@ -73,19 +72,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
             return true
         },
-        async jwt({ token, user }) {
-            // On initial sign-in, store role, isActive, and name in the JWT
+        async jwt({ token, user, account }) {
+            // On initial sign-in, fetch role from database
             if (user) {
-                token.role = (user as { role?: string }).role || 'USER'
-                token.isActive = (user as { isActive?: boolean }).isActive ?? true
-                token.userId = user.id
+                // For demo mode, the user object already has role
+                if (IS_DEMO_MODE) {
+                    token.role = (user as { role?: string }).role || 'USER'
+                    token.isActive = (user as { isActive?: boolean }).isActive ?? true
+                    token.userId = user.id
+                } else {
+                    // For Google OAuth, look up the user in the database to get their role
+                    const dbUser = await prisma.user.findUnique({
+                        where: { email: token.email || user.email || '' },
+                    })
+                    token.role = dbUser?.role || 'USER'
+                    token.isActive = dbUser?.isActive ?? true
+                    token.userId = dbUser?.id || user.id
+                }
                 token.name = user.name || (user.email ? user.email.split('@')[0] : 'User')
             }
             return token
         },
         async session({ session, token }) {
-            // Build session from JWT token data — no DB queries needed
-            // This avoids the Prisma edge runtime error
+            // Build session from JWT token data
             if (session.user && token) {
                 session.user.id = (token.userId as string) || token.sub || ''
                 session.user.role = (token.role as UserRole) || 'USER'
@@ -100,8 +109,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         error: '/login',
     },
     session: {
-        // Use JWT for demo mode (credentials), database for production (OAuth)
-        strategy: IS_DEMO_MODE ? 'jwt' : 'database',
+        // Always use JWT — works in both demo and production on Vercel serverless
+        strategy: 'jwt',
         maxAge: parseInt(process.env.SESSION_TIMEOUT_HOURS || '24') * 60 * 60,
     },
 })
