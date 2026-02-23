@@ -15,9 +15,50 @@ export const prisma =
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
+// Check if an error is a transient connection error worth retrying
+function isConnectionError(error: unknown): boolean {
+    const msg = error instanceof Error ? error.message : String(error)
+    return (
+        msg.includes('connection') ||
+        msg.includes('timeout') ||
+        msg.includes('ECONNREFUSED') ||
+        msg.includes('ECONNRESET') ||
+        msg.includes('P1001') ||
+        msg.includes('P1002') ||
+        msg.includes('P1008') ||
+        msg.includes('P1017')
+    )
+}
+
 /**
- * Retry wrapper for database operations.
- * Handles Supabase cold starts and transient connection failures on Vercel serverless.
+ * Extended Prisma client with auto-retry on ALL queries.
+ * Used by PrismaAdapter in auth.ts so that OAuth callbacks
+ * (user lookup, account creation) survive Supabase cold starts.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const prismaForAuth = prisma.$extends({
+    query: {
+        $allOperations: async ({ args, query }: { args: unknown; query: (args: unknown) => Promise<unknown> }) => {
+            const maxRetries = 2
+            const delayMs = 1500
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    return await query(args)
+                } catch (error) {
+                    if (attempt < maxRetries && isConnectionError(error)) {
+                        console.warn(`[PrismaAdapter] DB query failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms...`)
+                        await new Promise(resolve => setTimeout(resolve, delayMs))
+                        continue
+                    }
+                    throw error
+                }
+            }
+        },
+    },
+})
+
+/**
+ * Retry wrapper for database operations in API routes.
  * Usage: const users = await withDbRetry(() => prisma.user.findMany())
  */
 export async function withDbRetry<T>(
@@ -30,22 +71,13 @@ export async function withDbRetry<T>(
             return await fn()
         } catch (error: unknown) {
             const isLastAttempt = attempt === retries
+            if (isLastAttempt || !isConnectionError(error)) throw error
             const errorMsg = error instanceof Error ? error.message : String(error)
-            const isConnectionError =
-                errorMsg.includes('connection') ||
-                errorMsg.includes('timeout') ||
-                errorMsg.includes('ECONNREFUSED') ||
-                errorMsg.includes('ECONNRESET') ||
-                errorMsg.includes('P1001') || // Prisma: Can't reach database
-                errorMsg.includes('P1002') || // Prisma: Database timed out
-                errorMsg.includes('P1008') || // Prisma: Operations timed out
-                errorMsg.includes('P1017')    // Prisma: Server closed connection
-
-            if (isLastAttempt || !isConnectionError) throw error
             console.warn(`DB query failed (attempt ${attempt + 1}/${retries + 1}): ${errorMsg}. Retrying in ${delayMs}ms...`)
             await new Promise(resolve => setTimeout(resolve, delayMs))
         }
     }
     throw new Error('Unreachable')
 }
+
 

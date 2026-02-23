@@ -2,7 +2,7 @@ import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import Credentials from 'next-auth/providers/credentials'
 import { PrismaAdapter } from '@auth/prisma-adapter'
-import { prisma } from '@/lib/prisma'
+import { prisma, prismaForAuth } from '@/lib/prisma'
 import { UserRole } from '@prisma/client'
 
 const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'loveimagefoundry.com').split(',').map(d => d.trim())
@@ -29,7 +29,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     trustHost: true,
     secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
     // PrismaAdapter handles user/account creation on Google sign-in
-    ...(IS_DEMO_MODE ? {} : { adapter: PrismaAdapter(prisma) }),
+    // Uses prismaForAuth which has auto-retry on all queries for cold start resilience
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...(IS_DEMO_MODE ? {} : { adapter: PrismaAdapter(prismaForAuth as any) }),
     providers: [
         Google({
             clientId: process.env.GOOGLE_CLIENT_ID || 'demo',
