@@ -1,40 +1,31 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { getToken } from 'next-auth/jwt'
 
-// Lightweight middleware — does NOT import Prisma/auth config
-// This avoids the Edge Function size limit on Vercel's free tier
-export async function middleware(request: NextRequest) {
-    const token = await getToken({
-        req: request,
-        secret: process.env.NEXTAUTH_SECRET,
-    })
-
+// Ultra-lightweight middleware — zero external imports
+// Only checks if auth cookie exists. Actual auth validation happens in API routes.
+export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl
 
-    // Allow auth-related routes and public assets
+    // Allow public routes
     if (
+        pathname === '/login' ||
         pathname.startsWith('/api/auth') ||
         pathname.startsWith('/_next') ||
-        pathname.startsWith('/favicon.ico') ||
-        pathname === '/login'
+        pathname === '/favicon.ico' ||
+        pathname.startsWith('/demo')
     ) {
         return NextResponse.next()
     }
 
-    // Redirect to login if not authenticated
-    if (!token) {
-        const loginUrl = new URL('/login', request.url)
-        return NextResponse.redirect(loginUrl)
-    }
+    // Check for session cookie (NextAuth sets these)
+    const hasSession =
+        request.cookies.has('authjs.session-token') ||
+        request.cookies.has('__Secure-authjs.session-token') ||
+        request.cookies.has('next-auth.session-token') ||
+        request.cookies.has('__Secure-next-auth.session-token')
 
-    // Check admin routes
-    if (pathname.startsWith('/admin')) {
-        const role = token.role as string
-        if (role !== 'ADMIN') {
-            const dashboardUrl = new URL('/dashboard', request.url)
-            return NextResponse.redirect(dashboardUrl)
-        }
+    if (!hasSession) {
+        return NextResponse.redirect(new URL('/login', request.url))
     }
 
     return NextResponse.next()
