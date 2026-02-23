@@ -9,6 +9,8 @@ const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'loveimagefoundry.
 const IS_DEMO_MODE = process.env.DEMO_MODE === 'true'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+    trustHost: true,
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
     // PrismaAdapter handles user/account creation on Google sign-in
     ...(IS_DEMO_MODE ? {} : { adapter: PrismaAdapter(prisma) }),
     providers: [
@@ -83,12 +85,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                     token.userId = user.id
                 } else {
                     // For Google OAuth, look up the user in the database to get their role
-                    const dbUser = await prisma.user.findUnique({
-                        where: { email: token.email || user.email || '' },
-                    })
-                    token.role = dbUser?.role || 'USER'
-                    token.isActive = dbUser?.isActive ?? true
-                    token.userId = dbUser?.id || user.id
+                    try {
+                        const email = user.email || token.email
+                        if (email) {
+                            const dbUser = await prisma.user.findUnique({
+                                where: { email },
+                            })
+                            token.role = dbUser?.role || 'USER'
+                            token.isActive = dbUser?.isActive ?? true
+                            token.userId = dbUser?.id || user.id
+                        } else {
+                            token.role = 'USER'
+                            token.isActive = true
+                            token.userId = user.id
+                        }
+                    } catch (error) {
+                        console.error('Error fetching user from database during JWT callback:', error)
+                        // Fail gracefully: assign default role
+                        token.role = 'USER'
+                        token.isActive = true
+                        token.userId = user.id
+                    }
                 }
                 token.name = user.name || (user.email ? user.email.split('@')[0] : 'User')
             }
