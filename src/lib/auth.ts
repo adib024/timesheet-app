@@ -18,6 +18,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             clientId: process.env.GOOGLE_CLIENT_ID || 'demo',
             clientSecret: process.env.GOOGLE_CLIENT_SECRET || 'demo',
             allowDangerousEmailAccountLinking: true,
+            checks: ['state'], // Bypass PKCE to fix 'Invalid code verifier'
         }),
         // Demo mode credentials provider
         ...(IS_DEMO_MODE ? [
