@@ -15,6 +15,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         Google({
             clientId: process.env.GOOGLE_CLIENT_ID || 'demo',
             clientSecret: process.env.GOOGLE_CLIENT_SECRET || 'demo',
+            allowDangerousEmailAccountLinking: true,
         }),
         // Demo mode credentials provider
         ...(IS_DEMO_MODE ? [
