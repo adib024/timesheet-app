@@ -2,7 +2,7 @@ import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import Credentials from 'next-auth/providers/credentials'
 import { PrismaAdapter } from '@auth/prisma-adapter'
-import { prisma, prismaForAuth } from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { UserRole } from '@prisma/client'
 
 const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'loveimagefoundry.com,loveimagefoundry.co.uk').split(',').map(d => d.trim())
