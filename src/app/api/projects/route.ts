@@ -10,6 +10,8 @@ import type { ApiResponse, ProjectWithBudget } from '@/types'
 export async function GET(request: NextRequest) {
     try {
         const session = await auth()
+        console.log(`[API Projects] GET request from ${session?.user?.email} (Role: ${session?.user?.role})`)
+
         if (!session?.user) {
             return NextResponse.json<ApiResponse>({ success: false, error: 'Unauthorized' }, { status: 401 })
         }
@@ -93,6 +95,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json<ApiResponse<typeof projectsWithBudget>>({
             success: true,
             data: projectsWithBudget,
+        }, {
+            headers: { 'Cache-Control': 'no-store, max-age=0' }
         })
     } catch (error) {
         console.error('GET /api/projects error:', error)

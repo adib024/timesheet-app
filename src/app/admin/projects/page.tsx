@@ -41,8 +41,8 @@ export default function AdminProjectsPage() {
         try {
             setError(null)
             const [projectsRes, usersRes] = await Promise.all([
-                fetch('/api/projects?includeArchived=true'),
-                fetch('/api/users'),
+                fetch(`/api/projects?includeArchived=true&t=${Date.now()}`, { cache: 'no-store' }),
+                fetch(`/api/users?t=${Date.now()}`, { cache: 'no-store' }),
             ])
 
             if (!projectsRes.ok || !usersRes.ok) {

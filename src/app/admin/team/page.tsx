@@ -21,7 +21,7 @@ export default function AdminTeamPage() {
     const fetchUsers = async (retryCount = 0) => {
         try {
             setError(null)
-            const res = await fetch('/api/users')
+            const res = await fetch(`/api/users?t=${Date.now()}`, { cache: 'no-store' })
             if (!res.ok) {
                 if (res.status === 401) {
                     setError('Session expired. Please sign out and sign back in.')

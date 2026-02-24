@@ -8,7 +8,10 @@ export default async function AdminLayout({
     children: React.ReactNode
 }) {
     // Rely on middleware for session protection. 
-    // Just a final safety check for role if needed, but middleware handles this too.
+    // Added logging for diagnostic purposes on Vercel
+    const session = await auth()
+    console.log(`[AdminLayout] Rendering for: ${session?.user?.email}, Role: ${session?.user?.role}`)
+
     return (
         <div className="min-h-screen bg-gray-50 font-barlow">
             <TopHeader />

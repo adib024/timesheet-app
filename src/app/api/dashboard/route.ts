@@ -8,6 +8,7 @@ import type { ApiResponse } from '@/types'
 export async function GET() {
     try {
         const session = await auth()
+        console.log(`[API Dashboard] GET request from ${session?.user?.id} (${session?.user?.role})`)
         if (!session?.user) {
             return NextResponse.json<ApiResponse>({ success: false, error: 'Unauthorized' }, { status: 401 })
         }
@@ -16,9 +17,9 @@ export async function GET() {
         const weekStart = startOfWeek(today, { weekStartsOn: 1 })
 
         // Get workday target from settings
-        const workdaySetting = await prisma.settings.findUnique({
+        const workdaySetting = await withDbRetry(() => prisma.settings.findUnique({
             where: { key: 'workday_hours' },
-        })
+        }))
         const targetHours = parseFloat(workdaySetting?.value || '7.5')
 
         // Today's entries

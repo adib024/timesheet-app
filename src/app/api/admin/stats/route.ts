@@ -1,19 +1,21 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { prisma, withDbRetry } from '@/lib/prisma'
 import type { ApiResponse } from '@/types'
 import { startOfDay, endOfDay } from 'date-fns'
 
 export async function GET() {
     try {
         const session = await auth()
+        console.log(`[API Admin Stats] GET request from ${session?.user?.email} (Role: ${session?.user?.role})`)
+
         if (!session?.user || session.user.role !== 'ADMIN') {
             return NextResponse.json<ApiResponse>({ success: false, error: 'Unauthorized' }, { status: 401 })
         }
 
         // Get users on leave today
         const today = new Date()
-        const leaves = await prisma.leaveDay.findMany({
+        const leaves = await withDbRetry(() => prisma.leaveDay.findMany({
             where: {
                 date: {
                     gte: startOfDay(today),
@@ -23,17 +25,17 @@ export async function GET() {
             include: {
                 user: { select: { id: true, name: true, email: true } }
             }
-        })
+        }))
 
         // Get all time entries (excluding deleted)
         // We'll aggregate in memory to be flexible with the breakdown
-        const entries = await prisma.timesheet.findMany({
+        const entries = await withDbRetry(() => prisma.timesheet.findMany({
             where: { isDeleted: false },
             include: {
                 project: { select: { id: true, name: true } },
                 user: { select: { id: true, name: true, email: true } },
             },
-        })
+        }))
 
         // 1. Breakdown by Project -> Users
         const projectStats = new Map<string, {
@@ -136,6 +138,8 @@ export async function GET() {
                     type: l.type
                 }))
             }
+        }, {
+            headers: { 'Cache-Control': 'no-store, max-age=0' }
         })
 
     } catch (error) {

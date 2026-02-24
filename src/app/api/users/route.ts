@@ -9,6 +9,7 @@ import type { ApiResponse, UserInfo } from '@/types'
 export async function GET() {
     try {
         const session = await auth()
+        console.log(`[API Users] GET req: ${session?.user?.email}, Role: ${session?.user?.role}`)
         if (!session?.user) {
             return NextResponse.json<ApiResponse>({ success: false, error: 'Unauthorized' }, { status: 401 })
         }
@@ -33,6 +34,8 @@ export async function GET() {
         return NextResponse.json<ApiResponse<UserInfo[]>>({
             success: true,
             data: users,
+        }, {
+            headers: { 'Cache-Control': 'no-store, max-age=0' }
         })
     } catch (error) {
         console.error('GET /api/users error:', error)

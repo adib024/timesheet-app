@@ -1,11 +1,11 @@
 import NextAuth from 'next-auth'
 import { PrismaAdapter } from '@auth/prisma-adapter'
-import { prisma } from '@/lib/prisma'
+import { prisma, prismaForAuth } from '@/lib/prisma'
 import { authConfig } from './auth.config'
 import Credentials from 'next-auth/providers/credentials'
 
 const IS_DEMO_MODE = process.env.DEMO_MODE === 'true'
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'anshul@loveimagefoundry.com,aditya@aigeniq.ai').split(',').map(e => e.trim().toLowerCase())
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'anshul@loveimagefoundry.com,aditya@aigeniq.ai,noreply@loveimagefoundry.co.uk').split(',').map(e => e.trim().toLowerCase())
 
 async function withRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 1500): Promise<T> {
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -22,7 +22,10 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 1500): 
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
     ...authConfig,
-    adapter: IS_DEMO_MODE ? undefined : PrismaAdapter(prisma),
+    // Use prismaForAuth (with built-in retry) for the adapter.
+    // middleware.ts uses auth.config.ts which doesn't have an adapter,
+    // so this won't impact middleware bundle size.
+    adapter: IS_DEMO_MODE ? undefined : PrismaAdapter(prismaForAuth as any),
     providers: [
         ...authConfig.providers.filter(p => (p as any).id !== 'credentials'),
         ...(IS_DEMO_MODE ? [
