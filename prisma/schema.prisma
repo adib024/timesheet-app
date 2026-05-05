@@ -159,11 +159,12 @@ enum LeaveType {
 }
 
 model LeaveDay {
-  id     String    @id @default(cuid())
-  userId String
-  date   DateTime
-  type   LeaveType @default(OTHER)
-  notes  String?
+  id        String    @id @default(cuid())
+  userId    String
+  date      DateTime
+  type      LeaveType @default(OTHER)
+  isHalfDay Boolean   @default(false)
+  notes     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

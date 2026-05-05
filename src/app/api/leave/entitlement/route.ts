@@ -38,16 +38,20 @@ export async function GET(request: NextRequest) {
         }
 
         // Count used leave days for this year (exclude HOLIDAY type which is bank holidays)
+        // Half days count as 0.5
         const yearStart = new Date(`${year}-01-01T00:00:00Z`)
         const yearEnd = new Date(`${year}-12-31T23:59:59.999Z`)
 
-        const usedDays = await prisma.leaveDay.count({
+        const leaveDays = await prisma.leaveDay.findMany({
             where: {
                 userId: targetUserId,
                 date: { gte: yearStart, lte: yearEnd },
                 type: { not: 'HOLIDAY' },
             },
+            select: { isHalfDay: true },
         })
+
+        const usedDays = leaveDays.reduce((sum, ld) => sum + (ld.isHalfDay ? 0.5 : 1), 0)
 
         const totalAllowance = entitlement.baseAllowance + entitlement.extraAllowance
         const remaining = Math.max(0, totalAllowance - usedDays)
@@ -85,7 +89,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { userId, year, extraDays, reason } = body
+        const { userId, year, extraDays, reason, baseAllowance } = body
 
         if (!userId || !year || extraDays === undefined) {
             return NextResponse.json<ApiResponse>({
@@ -102,19 +106,24 @@ export async function POST(request: NextRequest) {
         }
 
         // Upsert entitlement
+        const updateData: any = {
+            extraAllowance: extraDays,
+            extraReason: reason || null,
+        }
+        const createData: any = {
+            userId,
+            year,
+            baseAllowance: typeof baseAllowance === 'number' ? baseAllowance : 25,
+            extraAllowance: extraDays,
+            extraReason: reason || null,
+        }
+        if (typeof baseAllowance === 'number' && baseAllowance >= 0 && baseAllowance <= 50) {
+            updateData.baseAllowance = baseAllowance
+        }
         const entitlement = await prisma.leaveEntitlement.upsert({
             where: { userId_year: { userId, year } },
-            update: {
-                extraAllowance: extraDays,
-                extraReason: reason || null,
-            },
-            create: {
-                userId,
-                year,
-                baseAllowance: 25,
-                extraAllowance: extraDays,
-                extraReason: reason || null,
-            },
+            update: updateData,
+            create: createData,
         })
 
         return NextResponse.json<ApiResponse<typeof entitlement>>({

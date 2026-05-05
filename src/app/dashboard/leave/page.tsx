@@ -10,6 +10,7 @@ interface LeaveDay {
     id: string
     date: string
     type: string
+    isHalfDay?: boolean
     notes?: string | null
 }
 
@@ -39,6 +40,7 @@ export default function LeavePage() {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [leaveType, setLeaveType] = useState('SICK')
     const [leaveNotes, setLeaveNotes] = useState('')
+    const [isHalfDay, setIsHalfDay] = useState(false)
 
     const currentYear = new Date().getFullYear()
 
@@ -113,13 +115,14 @@ export default function LeavePage() {
             const res = await fetch('/api/leave', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date: dateStr, type: leaveType, notes: leaveType === 'OTHER' ? leaveNotes : null }),
+                body: JSON.stringify({ date: dateStr, type: leaveType, isHalfDay, notes: leaveType === 'OTHER' ? leaveNotes : null }),
             })
             if (res.ok) {
                 await Promise.all([fetchLeaveDays(), fetchEntitlement()])
                 setShowConfirmModal(false)
                 setSelectedDate(null)
                 setLeaveNotes('')
+                setIsHalfDay(false)
             } else {
                 const err = await res.json()
                 alert(`Failed to add leave: ${err.error || 'Unknown error'}`)
@@ -311,6 +314,7 @@ export default function LeavePage() {
                                         {leave && (
                                             <span className={`absolute bottom-0.5 left-1/2 transform -translate-x-1/2 text-[9px] font-bold uppercase ${leave.type === 'SICK' ? 'text-pink-600' : 'text-gray-500'}`}>
                                                 {leave.type === 'SICK' ? 'S' : 'O'}
+                                                {leave.isHalfDay ? '½' : ''}
                                             </span>
                                         )}
                                     </button>
@@ -331,6 +335,10 @@ export default function LeavePage() {
                             <div className="flex items-center gap-1.5">
                                 <div className="w-3 h-3 rounded bg-gray-100 border border-gray-200" />
                                 <span>Other Leave</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-gray-500">½</span>
+                                <span>Half Day</span>
                             </div>
                         </div>
                     </Card>
@@ -356,7 +364,7 @@ export default function LeavePage() {
                                                     </span>
                                                 </div>
                                                 <span className={`text-xs capitalize ${leave.type === 'SICK' ? 'text-pink-600' : 'text-gray-500'}`}>
-                                                    {leave.type.toLowerCase()}
+                                                    {leave.type.toLowerCase()}{leave.isHalfDay ? ' (half day)' : ''}
                                                 </span>
                                                 {leave.notes && (
                                                     <span className="text-xs text-gray-400 mt-0.5 italic">
@@ -459,6 +467,35 @@ export default function LeavePage() {
                             />
                         </div>
                     )}
+
+                    {/* Half Day Toggle */}
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Duration
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setIsHalfDay(false)}
+                                className={`p-2 rounded border text-sm font-medium transition-colors ${!isHalfDay
+                                    ? 'bg-brand-teal/10 border-brand-teal text-brand-teal ring-1 ring-brand-teal'
+                                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                            >
+                                Full Day
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsHalfDay(true)}
+                                className={`p-2 rounded border text-sm font-medium transition-colors ${isHalfDay
+                                    ? 'bg-brand-teal/10 border-brand-teal text-brand-teal ring-1 ring-brand-teal'
+                                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                            >
+                                Half Day
+                            </button>
+                        </div>
+                    </div>
                     <div className="flex gap-3">
                         <Button
                             variant="secondary"

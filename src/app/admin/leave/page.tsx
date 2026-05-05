@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, isToday } from 'date-fns'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, isToday, isBefore, startOfDay } from 'date-fns'
 
 interface UserInfo {
     id: string
@@ -60,6 +60,14 @@ export default function AdminLeavePage() {
     const [extraDays, setExtraDays] = useState(0)
     const [extraReason, setExtraReason] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [baseAllowance, setBaseAllowance] = useState(25)
+
+    // Admin's own leave booking state
+    const [showMyLeaveModal, setShowMyLeaveModal] = useState(false)
+    const [myLeaveDate, setMyLeaveDate] = useState<Date | null>(null)
+    const [myLeaveType, setMyLeaveType] = useState('SICK')
+    const [myLeaveNotes, setMyLeaveNotes] = useState('')
+    const [myLeaveHalfDay, setMyLeaveHalfDay] = useState(false)
 
     const currentYear = new Date().getFullYear()
 
@@ -147,6 +155,7 @@ export default function AdminLeavePage() {
                     year: currentYear,
                     extraDays,
                     reason: extraReason,
+                    baseAllowance,
                 }),
             })
 
@@ -167,8 +176,47 @@ export default function AdminLeavePage() {
     const openGrantForUser = (userId: string) => {
         setSelectedUserId(userId)
         const existing = entitlements[userId]
+        setBaseAllowance(existing?.baseAllowance || 25)
         setExtraDays(existing?.extraAllowance || 0)
         setShowGrantModal(true)
+    }
+
+    // Admin booking own leave
+    const handleCalendarDateClick = (date: Date) => {
+        const bankHoliday = getBankHolidayForDate(date)
+        if (bankHoliday) return
+        if (isBefore(startOfDay(date), startOfDay(new Date()))) return
+        setMyLeaveDate(date)
+        setMyLeaveType('SICK')
+        setMyLeaveNotes('')
+        setMyLeaveHalfDay(false)
+        setShowMyLeaveModal(true)
+    }
+
+    const handleConfirmMyLeave = async () => {
+        if (!myLeaveDate) return
+        setIsSubmitting(true)
+        try {
+            const dateStr = format(myLeaveDate, 'yyyy-MM-dd')
+            const res = await fetch('/api/leave', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date: dateStr, type: myLeaveType, isHalfDay: myLeaveHalfDay, notes: myLeaveType === 'OTHER' ? myLeaveNotes : null }),
+            })
+            if (res.ok) {
+                await fetchLeaveDays()
+                setShowMyLeaveModal(false)
+                setMyLeaveDate(null)
+            } else {
+                const err = await res.json()
+                alert(`Failed to add leave: ${err.error || 'Unknown error'}`)
+            }
+        } catch (error) {
+            console.error('Error adding admin leave:', error)
+            alert('An unexpected error occurred')
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     // Calendar helpers
@@ -215,9 +263,14 @@ export default function AdminLeavePage() {
         <div className="p-8 space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold text-brand-teal uppercase tracking-wide">Leave Management</h1>
-                <Button onClick={() => { setSelectedUserId(''); setExtraDays(0); setExtraReason(''); setShowGrantModal(true) }}>
-                    + Grant Extra Days
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="secondary" onClick={() => { setMyLeaveDate(new Date()); setMyLeaveType('SICK'); setMyLeaveNotes(''); setMyLeaveHalfDay(false); setShowMyLeaveModal(true) }}>
+                        + Book My Leave
+                    </Button>
+                    <Button onClick={() => { setSelectedUserId(''); setBaseAllowance(25); setExtraDays(0); setExtraReason(''); setShowGrantModal(true) }}>
+                        + Edit Entitlement
+                    </Button>
+                </div>
             </div>
 
             {/* Section A: Team Leave Overview */}
@@ -272,7 +325,7 @@ export default function AdminLeavePage() {
                                 onClick={() => openGrantForUser(user.id)}
                                 className="mt-3 w-full text-xs text-brand-teal hover:bg-brand-teal/5 py-1.5 rounded border border-brand-teal/20 transition-colors"
                             >
-                                Grant Extra Days
+                                Edit Entitlement
                             </button>
                         </Card>
                     )
@@ -338,12 +391,13 @@ export default function AdminLeavePage() {
                         return (
                             <div
                                 key={day.toISOString()}
+                                onClick={() => handleCalendarDateClick(day)}
                                 className={`
-                                    relative p-2 rounded-lg min-h-[60px] transition-all
+                                    relative p-2 rounded-lg min-h-[60px] transition-all cursor-pointer
                                     ${today ? 'ring-2 ring-brand-teal' : ''}
-                                    ${bankHoliday ? 'bg-yellow-50 border border-yellow-200' : weekend ? 'bg-gray-50' : 'bg-white border border-gray-100'}
+                                    ${bankHoliday ? 'bg-yellow-50 border border-yellow-200' : weekend ? 'bg-gray-50' : 'bg-white border border-gray-100 hover:border-brand-teal/30 hover:bg-blue-50/30'}
                                 `}
-                                title={bankHoliday?.name}
+                                title={bankHoliday?.name || 'Click to book your leave'}
                             >
                                 <span className={`text-xs ${today ? 'font-bold text-brand-teal' : 'text-gray-500'}`}>
                                     {format(day, 'd')}
@@ -438,7 +492,7 @@ export default function AdminLeavePage() {
             <Modal
                 isOpen={showGrantModal}
                 onClose={() => setShowGrantModal(false)}
-                title="Grant Extra Leave Days"
+                title="Edit Leave Entitlement"
             >
                 <div className="space-y-4">
                     <div>
@@ -450,6 +504,7 @@ export default function AdminLeavePage() {
                             onChange={(e) => {
                                 setSelectedUserId(e.target.value)
                                 const existing = entitlements[e.target.value]
+                                setBaseAllowance(existing?.baseAllowance || 25)
                                 setExtraDays(existing?.extraAllowance || 0)
                             }}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-teal focus:border-transparent"
@@ -466,6 +521,23 @@ export default function AdminLeavePage() {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Base Allowance (days)
+                        </label>
+                        <input
+                            type="number"
+                            min={0}
+                            max={50}
+                            value={baseAllowance}
+                            onChange={(e) => setBaseAllowance(parseInt(e.target.value) || 0)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-teal focus:border-transparent"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            Default is 25 days. Adjust for users with different contracts.
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                             Extra Days to Allocate
                         </label>
                         <input
@@ -477,7 +549,7 @@ export default function AdminLeavePage() {
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-teal focus:border-transparent"
                         />
                         <p className="text-xs text-gray-500 mt-1">
-                            Total will be: 25 base + {extraDays} extra = {25 + extraDays} days
+                            Total will be: {baseAllowance} base + {extraDays} extra = {baseAllowance + extraDays} days
                         </p>
                     </div>
 
@@ -508,7 +580,109 @@ export default function AdminLeavePage() {
                             isLoading={isSubmitting}
                             disabled={!selectedUserId || extraDays < 0}
                         >
-                            Grant {extraDays} Extra Days
+                            Grant {baseAllowance + extraDays} Total Days
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Book My Leave Modal */}
+            <Modal
+                isOpen={showMyLeaveModal}
+                onClose={() => { setShowMyLeaveModal(false); setMyLeaveDate(null) }}
+                title="Book My Leave"
+            >
+                <div className="text-center">
+                    <p className="text-gray-700 mb-2">Mark leave for:</p>
+                    <p className="text-xl font-semibold text-gray-900 mb-4">
+                        {myLeaveDate && format(myLeaveDate, 'EEEE, MMMM d, yyyy')}
+                    </p>
+
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Leave Type
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setMyLeaveType('SICK')}
+                                className={`p-2 rounded border text-sm font-medium transition-colors ${myLeaveType === 'SICK'
+                                    ? 'bg-pink-50 border-pink-500 text-pink-700 ring-1 ring-pink-500'
+                                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                            >
+                                Sick
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMyLeaveType('OTHER')}
+                                className={`p-2 rounded border text-sm font-medium transition-colors ${myLeaveType === 'OTHER'
+                                    ? 'bg-gray-50 border-gray-500 text-gray-700 ring-1 ring-gray-500'
+                                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                            >
+                                Other
+                            </button>
+                        </div>
+                    </div>
+
+                    {myLeaveType === 'OTHER' && (
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Note (optional)
+                            </label>
+                            <textarea
+                                value={myLeaveNotes}
+                                onChange={(e) => setMyLeaveNotes(e.target.value)}
+                                placeholder="e.g., Dentist appointment, Family event"
+                                rows={2}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-teal focus:border-transparent resize-none"
+                            />
+                        </div>
+                    )}
+
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Duration
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setMyLeaveHalfDay(false)}
+                                className={`p-2 rounded border text-sm font-medium transition-colors ${!myLeaveHalfDay
+                                    ? 'bg-brand-teal/10 border-brand-teal text-brand-teal ring-1 ring-brand-teal'
+                                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                            >
+                                Full Day
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMyLeaveHalfDay(true)}
+                                className={`p-2 rounded border text-sm font-medium transition-colors ${myLeaveHalfDay
+                                    ? 'bg-brand-teal/10 border-brand-teal text-brand-teal ring-1 ring-brand-teal'
+                                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                            >
+                                Half Day
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                        <Button
+                            variant="secondary"
+                            className="flex-1"
+                            onClick={() => { setShowMyLeaveModal(false); setMyLeaveDate(null) }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            className="flex-1"
+                            onClick={handleConfirmMyLeave}
+                            isLoading={isSubmitting}
+                        >
+                            Confirm Leave
                         </Button>
                     </div>
                 </div>

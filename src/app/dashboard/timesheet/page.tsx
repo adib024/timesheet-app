@@ -38,7 +38,7 @@ export default function TimesheetPage() {
     const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
     const [selectedProject, setSelectedProject] = useState('')
     const [taskNotes, setTaskNotes] = useState('')
-    const [hoursInput, setHoursInput] = useState('8.0')
+    const [hoursInput, setHoursInput] = useState('7.5')
     const [isSubmitting, setIsSubmitting] = useState(false)
 
     const fetchAllData = useCallback(async () => {
@@ -117,7 +117,7 @@ export default function TimesheetPage() {
     const weekDays = Array.from({ length: 5 }, (_, i) => addDays(currentWeek, i)) // Mon-Fri for Template A
     const weekTotal = entries.reduce((sum, e) => sum + e.hours * 60 + e.minutes, 0)
     const weekTotalHours = (weekTotal / 60).toFixed(1)
-    const targetHours = 40
+    const targetHours = 37.5
     const progressPercent = Math.min(100, (weekTotal / (targetHours * 60)) * 100)
 
     // Project breakdown for summary
@@ -187,7 +187,7 @@ export default function TimesheetPage() {
                                 type="date"
                                 value={selectedDate}
                                 onChange={(e) => setSelectedDate(e.target.value)}
-                                min={format(subDays(new Date(), 7), 'yyyy-MM-dd')}
+                                min={format(subDays(new Date(), 30), 'yyyy-MM-dd')}
                                 max={format(new Date(), 'yyyy-MM-dd')}
                                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-brand-teal font-barlow text-lg"
                             />

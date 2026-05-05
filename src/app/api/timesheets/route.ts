@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
         const entryDate = new Date(date)
 
         // Check backdate limit
-        const backdateLimit = parseInt(process.env.BACKDATE_LIMIT_DAYS || '7')
+        const backdateLimit = parseInt(process.env.BACKDATE_LIMIT_DAYS || '30')
         if (!isWithinBackdateLimit(entryDate, backdateLimit)) {
             return NextResponse.json<ApiResponse>({
                 success: false,

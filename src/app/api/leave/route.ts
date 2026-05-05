@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
 
         const { date, type } = validation.data
         const notes = body.notes || null
+        const isHalfDay = body.isHalfDay === true
 
         // Store as Noon UTC to ensure it stays in the day regardless of minor shifts
         const leaveDate = new Date(`${date}T12:00:00Z`)
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest) {
                     userId: session.user.id,
                     date: leaveDate,
                     type: type || 'OTHER',
+                    isHalfDay,
                     notes,
                 },
             });

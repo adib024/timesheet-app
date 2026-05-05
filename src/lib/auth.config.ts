@@ -3,7 +3,7 @@ import Google from 'next-auth/providers/google'
 import Credentials from 'next-auth/providers/credentials'
 // Core config that is Edge-compatible (no Prisma imports)
 
-const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'loveimagefoundry.com,loveimagefoundry.co.uk').split(',').map(d => d.trim())
+const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || 'loveimagefoundry.com,loveimagefoundry.co.uk,thepixelworkshop.com').split(',').map(d => d.trim())
 const IS_DEMO_MODE = process.env.DEMO_MODE === 'true'
 
 export const authConfig = {

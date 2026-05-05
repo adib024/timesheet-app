@@ -10,7 +10,7 @@ export default function SettingsPage() {
         companyName: 'Image Foundry',
         emailDomain: 'imagefoundry.com',
         currency: 'GBP',
-        weeklyTarget: 40,
+        weeklyTarget: 37.5,
         requireApproval: true,
         allowOvertime: true,
         trackLeave: true,
