@@ -47,9 +47,9 @@ export function QuantumTimeInput({ value, onChange, className }: QuantumTimeInpu
             <div className="mb-6">
                 <div className="flex justify-between text-xs text-gray-400 mb-2 font-medium">
                     <span>0h</span>
-                    <span>3.75h</span>
-                    <span className="text-brand-teal font-bold">7.5h</span>
-                    <span>11h</span>
+                    <span>4h</span>
+                    <span>8h</span>
+                    <span>12h</span>
                 </div>
                 <input
                     type="range"
